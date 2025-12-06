@@ -20,7 +20,7 @@ export default function ClientsPage() {
     const [showAddModal, setShowAddModal] = useState(false);
 
     // Form State
-    const [newClient, setNewClient] = useState({ name: '', email: '', phone: '', program: 'Interest', status: 'Lead' });
+    const [newClient, setNewClient] = useState({ name: '', email: '', program: 'Interest', status: 'Lead' });
 
     useEffect(() => {
         fetchClients();
@@ -48,33 +48,13 @@ export default function ClientsPage() {
                 body: JSON.stringify(newClient)
             });
             if (res.ok) {
-                const data = await res.json();
                 setShowAddModal(false);
-                setNewClient({ name: '', email: '', phone: '', program: 'Interest', status: 'Lead' });
+                setNewClient({ name: '', email: '', program: 'Interest', status: 'Lead' });
                 fetchClients(); // Refresh
-
-                // Send notifications
-                if (data.client && newClient.phone) {
-                    sendWhatsAppNotification(newClient.name, newClient.phone);
-                }
-                if (data.client && newClient.email) {
-                    sendEmailNotification(newClient.name, newClient.email);
-                }
             }
         } catch (error) {
             console.error(error);
         }
-    };
-
-    const sendWhatsAppNotification = (name: string, phone: string) => {
-        const message = encodeURIComponent(`Hi ${name}! Welcome to our program. We're excited to have you on board! 🎉`);
-        window.open(`https://wa.me/${phone.replace(/\D/g, '')}?text=${message}`, '_blank');
-    };
-
-    const sendEmailNotification = async (name: string, email: string) => {
-        // In production, this would call an API route that uses Resend/SendGrid
-        console.log(`📧 Email notification sent to ${name} (${email})`);
-        // TODO: Implement actual email sending via /api/send-email
     };
 
     const handleDelete = async (id: string) => {
@@ -154,14 +134,13 @@ export default function ClientsPage() {
                                         <div>
                                             <div className="font-bold text-white">{client.name}</div>
                                             <div className="text-sm text-slate-500">{client.email}</div>
-                                            {client.phone && <div className="text-xs text-slate-600">{client.phone}</div>}
                                         </div>
                                     </div>
                                 </td>
                                 <td className="p-6">
                                     <span className={`px-3 py-1 rounded-full text-xs font-bold border ${client.status === 'Active' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
-                                        client.status === 'Lead' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' :
-                                            'bg-slate-800 text-slate-400 border-slate-700'
+                                            client.status === 'Lead' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' :
+                                                'bg-slate-800 text-slate-400 border-slate-700'
                                         }`}>
                                         {client.status}
                                     </span>
@@ -190,20 +169,10 @@ export default function ClientsPage() {
                                 </td>
                                 <td className="p-6">
                                     <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button
-                                            onClick={() => client.phone && sendWhatsAppNotification(client.name, client.phone)}
-                                            disabled={!client.phone}
-                                            className="p-2 hover:bg-slate-700 rounded-lg text-green-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                                            title={client.phone ? "WhatsApp" : "No phone number"}
-                                        >
+                                        <button className="p-2 hover:bg-slate-700 rounded-lg text-green-400 transition-colors" title="WhatsApp">
                                             <MessageSquare size={18} />
                                         </button>
-                                        <button
-                                            onClick={() => client.phone && window.open(`tel:${client.phone}`)}
-                                            disabled={!client.phone}
-                                            className="p-2 hover:bg-slate-700 rounded-lg text-blue-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                                            title={client.phone ? "Call" : "No phone number"}
-                                        >
+                                        <button className="p-2 hover:bg-slate-700 rounded-lg text-blue-400 transition-colors" title="Call">
                                             <Phone size={18} />
                                         </button>
                                         <button className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-white transition-colors" title="Edit">
@@ -217,99 +186,87 @@ export default function ClientsPage() {
                             </tr>
                         ))}
                     </tbody>
-                </table >
-            </div >
+                </table>
+            </div>
 
             {/* Add Client Modal */}
-            {
-                showAddModal && (
-                    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-                        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl">
-                            <div className="flex justify-between items-center mb-6">
-                                <h2 className="text-2xl font-bold text-white">Add New Client</h2>
-                                <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-white">✕</button>
-                            </div>
-                            <form onSubmit={handleAddClient} className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-bold text-slate-400 mb-2">Full Name</label>
-                                    <input
-                                        type="text"
-                                        required
-                                        value={newClient.name}
-                                        onChange={(e) => setNewClient({ ...newClient, name: e.target.value })}
-                                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white outline-none focus:border-indigo-500"
-                                        placeholder="e.g. John Doe"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-slate-400 mb-2">Phone Number</label>
-                                    <input
-                                        type="tel"
-                                        value={newClient.phone}
-                                        onChange={(e) => setNewClient({ ...newClient, phone: e.target.value })}
-                                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white outline-none focus:border-indigo-500"
-                                        placeholder="+1 234 567 8900"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-slate-400 mb-2">Email Address</label>
-                                    <input
-                                        type="email"
-                                        required
-                                        value={newClient.email}
-                                        onChange={(e) => setNewClient({ ...newClient, email: e.target.value })}
-                                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white outline-none focus:border-indigo-500"
-                                        placeholder="john@example.com"
-                                    />
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-bold text-slate-400 mb-2">Status</label>
-                                        <select
-                                            value={newClient.status}
-                                            onChange={(e) => setNewClient({ ...newClient, status: e.target.value })}
-                                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white outline-none focus:border-indigo-500 cursor-pointer"
-                                        >
-                                            <option>Lead</option>
-                                            <option>Active</option>
-                                            <option>Churned</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-bold text-slate-400 mb-2">Program</label>
-                                        <select
-                                            value={newClient.program}
-                                            onChange={(e) => setNewClient({ ...newClient, program: e.target.value })}
-                                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white outline-none focus:border-indigo-500 cursor-pointer"
-                                        >
-                                            <option>Interest</option>
-                                            <option>Hypertrophy</option>
-                                            <option>Fat Loss</option>
-                                            <option>Marathon Prep</option>
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div className="flex gap-4 pt-4">
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowAddModal(false)}
-                                        className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition-colors"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition-colors shadow-lg shadow-indigo-600/20"
-                                    >
-                                        Create Client
-                                    </button>
-                                </div>
-                            </form>
+            {showAddModal && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-2xl font-bold text-white">Add New Client</h2>
+                            <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-white">✕</button>
                         </div>
+                        <form onSubmit={handleAddClient} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-bold text-slate-400 mb-2">Full Name</label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={newClient.name}
+                                    onChange={(e) => setNewClient({ ...newClient, name: e.target.value })}
+                                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white outline-none focus:border-indigo-500"
+                                    placeholder="e.g. John Doe"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-400 mb-2">Email Address</label>
+                                <input
+                                    type="email"
+                                    required
+                                    value={newClient.email}
+                                    onChange={(e) => setNewClient({ ...newClient, email: e.target.value })}
+                                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white outline-none focus:border-indigo-500"
+                                    placeholder="john@example.com"
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-400 mb-2">Status</label>
+                                    <select
+                                        value={newClient.status}
+                                        onChange={(e) => setNewClient({ ...newClient, status: e.target.value })}
+                                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white outline-none focus:border-indigo-500 cursor-pointer"
+                                    >
+                                        <option>Lead</option>
+                                        <option>Active</option>
+                                        <option>Churned</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-400 mb-2">Program</label>
+                                    <select
+                                        value={newClient.program}
+                                        onChange={(e) => setNewClient({ ...newClient, program: e.target.value })}
+                                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white outline-none focus:border-indigo-500 cursor-pointer"
+                                    >
+                                        <option>Interest</option>
+                                        <option>Hypertrophy</option>
+                                        <option>Fat Loss</option>
+                                        <option>Marathon Prep</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-4 pt-4">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAddModal(false)}
+                                    className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition-colors shadow-lg shadow-indigo-600/20"
+                                >
+                                    Create Client
+                                </button>
+                            </div>
+                        </form>
                     </div>
-                )
-            }
-        </div >
+                </div>
+            )}
+        </div>
     );
 }
