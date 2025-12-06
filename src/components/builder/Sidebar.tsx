@@ -144,7 +144,7 @@ const EditForm = ({ block, onChange }: { block: any, onChange: (c: any) => void 
     return <div className="text-slate-500 text-sm">No editor available for this block type.</div>;
 };
 
-const Input = ({ label, value, onChange, textarea }: any) => (
+const Input = ({ label, value, onChange, textarea }: { label: string, value: string, onChange: (val: string) => void, textarea?: boolean }) => (
     <div>
         <label className="block text-xs font-medium text-slate-400 mb-1">{label}</label>
         {textarea ? (

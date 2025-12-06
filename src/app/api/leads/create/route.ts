@@ -6,11 +6,13 @@ import { z } from 'zod';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseServiceKey) {
-    console.error("Supabase credentials missing");
-}
-
-const supabase = createClient(supabaseUrl || '', supabaseServiceKey || '');
+// Lazy client creation
+const getSupabase = () => {
+    if (!supabaseUrl || !supabaseServiceKey) {
+        return null;
+    }
+    return createClient(supabaseUrl, supabaseServiceKey);
+};
 
 // Validation Schema
 const LeadSchema = z.object({
@@ -29,8 +31,34 @@ export async function POST(request: Request) {
         // 1. Validate Input
         const validatedData = LeadSchema.parse(body);
 
-        // 2. Insert into Supabase
-        // Note: 'inbound_leads' table must exist in Supabase
+        // 2. Get Supabase Client
+        const supabase = getSupabase();
+
+        // --- DEMO MODE (Fallback) ---
+        if (!supabase) {
+            console.warn('⚠️ Supabase keys missing. Simulating lead capture in DEMO MODE.');
+
+            // Simulate network delay
+            await new Promise(resolve => setTimeout(resolve, 800));
+
+            const demoLead = {
+                id: 'demo-' + Date.now(),
+                ...validatedData,
+                created_at: new Date().toISOString(),
+                status: 'NEW_LEAD',
+                note: 'This is a demo lead because Supabase keys are not set.'
+            };
+
+            return NextResponse.json({
+                success: true,
+                lead: demoLead,
+                isDemo: true,
+                message: "Lead captured in Demo Mode (Configure Supabase for real data)"
+            }, { status: 201 });
+        }
+        // -----------------------------
+
+        // 3. Insert into Supabase
         const { data, error } = await supabase
             .from('inbound_leads')
             .insert({
@@ -48,6 +76,7 @@ export async function POST(request: Request) {
 
         if (error) {
             console.error('Supabase Insert Error:', error);
+            // Don't crash on DB error, maybe return formatted error
             return NextResponse.json({ error: 'Failed to save lead', details: error.message }, { status: 500 });
         }
 
@@ -55,8 +84,10 @@ export async function POST(request: Request) {
 
     } catch (error) {
         if (error instanceof z.ZodError) {
-            return NextResponse.json({ error: 'Invalid data', details: error.errors }, { status: 400 });
+            // Safe access to errors
+            return NextResponse.json({ error: 'Invalid data', details: (error as any).errors || error }, { status: 400 });
         }
+        console.error('API Error:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }

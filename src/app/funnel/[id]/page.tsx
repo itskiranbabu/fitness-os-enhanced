@@ -1,8 +1,7 @@
-import React from 'react';
-import FunnelEditor from '@/components/funnel/FunnelEditor';
+import SalesPageRenderer from '@/components/funnel/SalesPageRenderer';
 import { WebsiteData } from '@/lib/types';
 
-// Mock Data Load (Server Component)
+// Mock Data Load
 async function getFunnelData(id: string): Promise<WebsiteData> {
     // In real app: await db.funnels.findUnique({ where: { id } })
     return {
@@ -51,13 +50,11 @@ async function getFunnelData(id: string): Promise<WebsiteData> {
     };
 }
 
-export default async function FunnelEditorPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function PublicFunnelPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
-
-    // Fetch data
-    const initialData = await getFunnelData(id);
+    const data = await getFunnelData(id);
 
     return (
-        <FunnelEditor initialData={initialData} />
+        <SalesPageRenderer data={data} />
     );
 }

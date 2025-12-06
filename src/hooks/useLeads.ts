@@ -2,16 +2,21 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { leadService } from '@/lib/services/leadService';
 
-// Initialize client-side Supabase
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
+// Initialize client-side Supabase safely
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+// Only create the client if we have keys. 
+// Otherwise we'll return a dummy object or null to prevent crashes during dev without env vars.
+const supabase = (supabaseUrl && supabaseKey)
+    ? createClient(supabaseUrl, supabaseKey)
+    : null;
 
 export interface Lead {
     id: string;
     project_id: string;
     email: string;
-    name?: string;
+    name: string;
     phone?: string;
     message?: string;
     source?: string;
@@ -26,6 +31,14 @@ export function useLeads(projectId: string) {
 
     useEffect(() => {
         if (!projectId) return;
+
+        // If no supabase client, return empty
+        if (!supabase) {
+            console.warn('Supabase keys missing. Real-time data unavailable.');
+            setLeads([]);
+            setLoading(false);
+            return;
+        }
 
         // Initial Fetch
         const loadLeads = async () => {

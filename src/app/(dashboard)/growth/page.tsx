@@ -1,14 +1,20 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { aiService, SocialPost } from '@/lib/ai/ai-service';
 import { Sparkles, Calendar, Copy, RefreshCw, Image as ImageIcon } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useBusinessOS } from '@/providers/BusinessOSProvider';
 
 export default function GrowthEnginePage() {
-    const [niche, setNiche] = useState('');
+    const { config } = useBusinessOS();
+    const [niche, setNiche] = useState(config.niche || '');
     const [isGenerating, setIsGenerating] = useState(false);
     const [posts, setPosts] = useState<SocialPost[]>([]);
+
+    useEffect(() => {
+        if (config.niche) setNiche(config.niche);
+    }, [config.niche]);
 
     const handleGenerate = async () => {
         if (!niche) return;
@@ -84,8 +90,8 @@ export default function GrowthEnginePage() {
                                     <span>Day {post.day}</span>
                                 </div>
                                 <span className={`text-xs px-2 py-1 rounded-full font-medium ${post.type === 'Video' ? 'bg-blue-500/10 text-blue-400' :
-                                        post.type === 'Carousel' ? 'bg-purple-500/10 text-purple-400' :
-                                            'bg-emerald-500/10 text-emerald-400'
+                                    post.type === 'Carousel' ? 'bg-purple-500/10 text-purple-400' :
+                                        'bg-emerald-500/10 text-emerald-400'
                                     }`}>
                                     {post.type}
                                 </span>

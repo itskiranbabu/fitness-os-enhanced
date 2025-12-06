@@ -250,7 +250,7 @@ Return a complete business blueprint in JSON format matching the schema.`;
     ): Promise<SocialPost[]> {
         const model = this.selectModel('content', config?.model);
 
-        const prompt = `You are a viral content strategist. Generate ${days} polarizing, high-engagement post ideas for the "${niche}" fitness niche.
+        const prompt = `You are a viral content strategist. Generate ${days} polarizing, high-engagement post ideas for the "${niche}" niche.
 
 Use hooks that stop the scroll (e.g. "Stop doing cardio", "Why your diet failed").
 

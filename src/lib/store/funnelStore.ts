@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { v4 as uuidv4 } from 'uuid';
+
 
 export type BlockType = 'HERO' | 'FEATURES' | 'PRICING' | 'CTA' | 'TESTIMONIALS' | 'FAQ';
 
