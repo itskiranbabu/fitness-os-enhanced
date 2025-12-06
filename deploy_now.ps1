@@ -1,6 +1,11 @@
 # BusinessOS V2 - Automated Deployment Script
 $ErrorActionPreference = "Stop"
 
+# Ensure we are in the correct directory (where the script is located)
+$ScriptPath = Split-Path -Parent $MyInvocation.MyCommand.Definition
+if ($ScriptPath) { Set-Location -Path $ScriptPath }
+Write-Host "📂 Working Directory: $(Get-Location)" -ForegroundColor DarkGray
+
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host "   🚀 BusinessOS V2 Deployment Sequence   " -ForegroundColor Cyan
 Write-Host "==========================================" -ForegroundColor Cyan
