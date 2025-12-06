@@ -1,0 +1,379 @@
+// This is your Prisma schema file
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USER & AUTHENTICATION
+// ============================================
+
+enum UserRole {
+  OWNER
+  TEAM_MEMBER
+  ADMIN
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  name          String?
+  avatar        String?
+  role          UserRole  @default(OWNER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Subscription
+  subscription  Subscription?
+  
+  // Relations
+  projects      Project[]
+  clients       Client[]
+  leads         Lead[]
+  automations   Automation[]
+  templates     Template[]
+  marketplaceProfile MarketplaceProfile?
+  
+  @@map("users")
+}
+
+model MarketplaceProfile {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  sellerName  String
+  bio         String?
+  stripeConnectId String?
+  
+  totalSales  Int      @default(0)
+  rating      Float    @default(0)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("marketplace_profiles")
+}
+
+model Subscription {
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  stripeCustomerId      String?  @unique
+  stripeSubscriptionId  String?  @unique
+  stripePriceId         String?
+  stripeCurrentPeriodEnd DateTime?
+  
+  plan              String   // starter, pro, agency
+  status            String   // active, canceled, past_due
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@map("subscriptions")
+}
+
+// ============================================
+// PROJECTS & BUSINESS VERTICALS
+// ============================================
+
+enum VerticalType {
+  FITNESS_OS
+  AGENCY_OS
+  REAL_ESTATE_OS
+  CREATOR_OS
+  SERVICE_OS
+  CUSTOM_OS
+}
+
+model Project {
+  id            String       @id @default(uuid())
+  userId        String
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  businessName  String
+  niche         String
+  slug          String       @unique // Public funnel URL
+  customDomain  String?
+  
+  vertical      VerticalType @default(FITNESS_OS)
+  
+  // Business Blueprint (AI Generated)
+  blueprint     Json         // Offer, Avatar, Pricing, Strategy
+  branding      Json?        // Colors, Fonts, Logo
+  
+  // Website Data
+  websiteData   Json?
+  publishedUrl  String?
+  
+  // Content Plan
+  contentPlan   Json?
+  
+  // Settings
+  isPublic      Boolean  @default(false)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  leads         Lead[]
+  clients       Client[]
+  automations   Automation[]
+  events        AnalyticsEvent[]
+  growthPlans   GrowthPlan[]
+  products      Product[]
+  funnels       Funnel[]
+  
+  @@index([userId])
+  @@index([slug])
+  @@map("projects")
+}
+
+// ============================================
+// CRM & LEADS
+// ============================================
+
+model Lead {
+  id          String   @id @default(uuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  userId      String?  // Optional link to a user if they convert
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  name        String
+  email       String
+  phone       String?
+  message     String?
+  
+  status      String   @default("NEW") // NEW, CONTACTED, CONVERTED, ARCHIVED
+  source      String   @default("Website") 
+  score       Int      @default(0) // AI-generated lead score 0-100
+  
+  // AI Insights
+  aiInsights  Json?    // Predicted conversion probability, recommended actions
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([projectId])
+  @@index([email])
+  @@map("inbound_leads")
+}
+
+model Client {
+  id            String   @id @default(uuid())
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  name          String
+  email         String
+  phone         String?
+  
+  status        String   @default("ACTIVE")
+  program       String?
+  
+  joinDate      DateTime @default(now())
+  lastCheckIn   DateTime?
+  progress      Int      @default(0)
+  
+  notes         String?
+  tags          String[]
+  
+  // AI Predictions
+  churnRisk     Float?   // 0-1 probability
+  lifetimeValue Float?   // Predicted LTV
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@index([projectId])
+  @@index([userId])
+  @@map("clients")
+}
+
+// ============================================
+// FUNNELS & PRODUCTS
+// ============================================
+
+model Funnel {
+  id          String   @id @default(uuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  name        String
+  pages       FunnelPage[]
+  published   Boolean  @default(false)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("funnels")
+}
+
+model FunnelPage {
+  id          String   @id @default(uuid())
+  funnelId    String
+  funnel      Funnel   @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  
+  path        String   // "/thank-you"
+  sections    Json     // Array of UI sections
+  
+  views       Int      @default(0)
+  conversions Int      @default(0)
+  
+  @@map("funnel_pages")
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  name        String
+  description String?
+  price       Float
+  currency    String   @default("usd")
+  
+  stripePriceId String?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("products")
+}
+
+// ============================================
+// AUTOMATIONS & WORKFLOWS
+// ============================================
+
+model Automation {
+  id          String   @id @default(uuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  name        String
+  type        String   // email, sms, whatsapp
+  trigger     String   // event-based or time-based
+  
+  status      String   @default("active") // active, paused, archived
+  
+  // Workflow Configuration
+  config      Json     // Trigger conditions, message templates, etc.
+  
+  // Stats
+  sent        Int      @default(0)
+  opened      Int      @default(0)
+  clicked     Int      @default(0)
+  converted   Int      @default(0)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([projectId])
+  @@index([userId])
+  @@map("automations")
+}
+
+// ============================================
+// ANALYTICS & EVENTS
+// ============================================
+
+model AnalyticsEvent {
+  id          String   @id @default(uuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  type        String   // page_view, lead_created, client_converted, automation_triggered
+  metadata    Json?
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([projectId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("analytics_events")
+}
+
+model GrowthPlan {
+  id          String   @id @default(uuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  experiments Json     // Array of growth experiments
+  messages    Json     // Suggested sales messages
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([projectId])
+  @@map("growth_plans")
+}
+
+// ============================================
+// MARKETPLACE & TEMPLATES
+// ============================================
+
+model Template {
+  id            String       @id @default(uuid())
+  authorId      String
+  author        User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  
+  title         String
+  description   String
+  category      String       // full_system, funnel, automation, content_pack
+  vertical      VerticalType
+  niche         String
+  
+  price         Float        @default(0)
+  isPublic      Boolean      @default(false)
+  verified      Boolean      @default(false)
+  
+  installCount  Int          @default(0)
+  rating        Float        @default(0)
+  
+  previewImage  String?
+  config        Json         // The template configuration
+  
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  
+  @@index([authorId])
+  @@index([category])
+  @@index([vertical])
+  @@map("templates")
+}
+
+// ============================================
+// INTEGRATIONS
+// ============================================
+
+model Integration {
+  id          String   @id @default(uuid())
+  userId      String
+  
+  provider    String   // google_calendar, stripe, zapier, etc.
+  accessToken String?  @db.Text
+  refreshToken String? @db.Text
+  expiresAt   DateTime?
+  
+  config      Json?    // Provider-specific configuration
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([userId, provider])
+  @@index([userId])
+  @@map("integrations")
+}
