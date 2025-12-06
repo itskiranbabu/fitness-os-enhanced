@@ -9,13 +9,15 @@
 ## 2. Push to GitHub
 Since I am an AI running locally, I cannot push to your private GitHub directly. **You must do this step:**
 
-1.  **Create a New Repository** on [GitHub.com](https://github.com/new) named `business-os-ai`.
+1.  **Create a New Repository** on [GitHub.com](https://github.com/new) named `fitness-os-enhanced`.
 2.  **Run these commands** in your terminal (inside `d:\MyDigitalProductWorkspace\fitness-os-enhanced`):
 
 ```bash
-git remote add origin https://github.com/YOUR_USERNAME/business-os-ai.git
-git branch -M main
-git push -u origin main
+# 1. Create repo at https://github.com/new named 'fitness-os-enhanced'
+# 2. Run:
+git remote add origin https://github.com/itskiranbabu/fitness-os-enhanced.git
+git branch -M master
+git push -u origin master
 ```
 
 ## 3. Deploy to Vercel
