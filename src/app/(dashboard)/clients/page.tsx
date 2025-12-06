@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Search, Plus, Phone, MessageSquare, PenSquare, Trash2, Mail, MoreHorizontal } from 'lucide-react';
+import { Search, Plus, Phone, MessageSquare, PenSquare, Trash2, Mail } from 'lucide-react';
+import { useBusinessOS } from '@/providers/BusinessOSProvider';
+import { sendWelcomeEmail } from '@/lib/emailService';
 
 interface Client {
     id: string;
@@ -15,12 +17,20 @@ interface Client {
 }
 
 export default function ClientsPage() {
+    const { config } = useBusinessOS();
     const [clients, setClients] = useState<Client[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState(false);
+    const [errors, setErrors] = useState({ email: '', phone: '' });
 
     // Form State
-    const [newClient, setNewClient] = useState({ name: '', email: '', program: 'Interest', status: 'Lead' });
+    const [newClient, setNewClient] = useState({
+        name: '',
+        email: '',
+        phone: '',
+        program: 'Interest',
+        status: 'Lead'
+    });
 
     useEffect(() => {
         fetchClients();
@@ -39,18 +49,74 @@ export default function ClientsPage() {
         }
     };
 
+    const validateEmail = (email: string) => {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
+    };
+
+    const validatePhone = (phone: string) => {
+        if (!phone) return true; // Phone is optional
+        const phoneRegex = /^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,9}$/;
+        return phoneRegex.test(phone);
+    };
+
+    const sendWhatsAppNotification = (name: string, phone: string) => {
+        const verticalMessages: Record<string, string> = {
+            FITNESS_OS: `Hi ${name}! 💪 Welcome to our fitness family! We're thrilled to have you start your transformation journey with us. Your coach will reach out within 24 hours to schedule your first session. Let's crush those goals together!`,
+            AGENCY_OS: `Hi ${name}! 🚀 Welcome aboard! We're excited to partner with you and help scale your business to new heights. Our team will be in touch shortly to kick off your onboarding. Here's to explosive growth!`,
+            REAL_ESTATE_OS: `Hi ${name}! 🏡 Welcome to our real estate family! We're committed to helping you find your dream property or sell at the best price. Your dedicated agent will contact you within 24 hours. Let's make it happen!`,
+            CREATOR_OS: `Hi ${name}! ✨ Welcome to the creator community! We're excited to help you grow your audience and monetize your passion. Your success manager will reach out soon to get you started. Let's build something amazing!`
+        };
+
+        const message = verticalMessages[config.vertical] || `Hi ${name}! Welcome to our program. We're excited to have you on board and look forward to working with you!`;
+        const encodedMessage = encodeURIComponent(message);
+        const cleanPhone = phone.replace(/\D/g, '');
+        window.open(`https://wa.me/${cleanPhone}?text=${encodedMessage}`, '_blank');
+    };
+
     const handleAddClient = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        // Validate
+        const newErrors = { email: '', phone: '' };
+        if (!validateEmail(newClient.email)) {
+            newErrors.email = 'Please enter a valid email address';
+        }
+        if (newClient.phone && !validatePhone(newClient.phone)) {
+            newErrors.phone = 'Please enter a valid phone number (e.g., +1234567890)';
+        }
+
+        if (newErrors.email || newErrors.phone) {
+            setErrors(newErrors);
+            return;
+        }
+
+        setErrors({ email: '', phone: '' });
+
         try {
             const res = await fetch('/api/clients', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(newClient)
             });
+
             if (res.ok) {
+                const data = await res.json();
                 setShowAddModal(false);
-                setNewClient({ name: '', email: '', program: 'Interest', status: 'Lead' });
+                setNewClient({ name: '', email: '', phone: '', program: 'Interest', status: 'Lead' });
                 fetchClients(); // Refresh
+
+                // Send notifications
+                if (data.client && newClient.phone) {
+                    sendWhatsAppNotification(newClient.name, newClient.phone);
+                }
+
+                if (data.client && newClient.email) {
+                    const emailSent = await sendWelcomeEmail(newClient.name, newClient.email, config.vertical);
+                    if (emailSent) {
+                        console.log('✅ Welcome email sent to', newClient.email);
+                    }
+                }
             }
         } catch (error) {
             console.error(error);
@@ -78,7 +144,7 @@ export default function ClientsPage() {
             <div className="flex justify-between items-center mb-8">
                 <div>
                     <h1 className="text-3xl font-bold text-white mb-2">CRM</h1>
-                    <p className="text-slate-400">Manage your athletes, payments, and progress.</p>
+                    <p className="text-slate-400">Manage your clients, payments, and progress.</p>
                 </div>
                 <button
                     onClick={() => setShowAddModal(true)}
@@ -134,6 +200,7 @@ export default function ClientsPage() {
                                         <div>
                                             <div className="font-bold text-white">{client.name}</div>
                                             <div className="text-sm text-slate-500">{client.email}</div>
+                                            {client.phone && <div className="text-xs text-slate-600">{client.phone}</div>}
                                         </div>
                                     </div>
                                 </td>
@@ -169,10 +236,20 @@ export default function ClientsPage() {
                                 </td>
                                 <td className="p-6">
                                     <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button className="p-2 hover:bg-slate-700 rounded-lg text-green-400 transition-colors" title="WhatsApp">
+                                        <button
+                                            onClick={() => client.phone && sendWhatsAppNotification(client.name, client.phone)}
+                                            disabled={!client.phone}
+                                            className="p-2 hover:bg-slate-700 rounded-lg text-green-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                            title={client.phone ? "WhatsApp" : "No phone number"}
+                                        >
                                             <MessageSquare size={18} />
                                         </button>
-                                        <button className="p-2 hover:bg-slate-700 rounded-lg text-blue-400 transition-colors" title="Call">
+                                        <button
+                                            onClick={() => client.phone && window.open(`tel:${client.phone}`)}
+                                            disabled={!client.phone}
+                                            className="p-2 hover:bg-slate-700 rounded-lg text-blue-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                            title={client.phone ? "Call" : "No phone number"}
+                                        >
                                             <Phone size={18} />
                                         </button>
                                         <button className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-white transition-colors" title="Edit">
@@ -210,15 +287,27 @@ export default function ClientsPage() {
                                 />
                             </div>
                             <div>
+                                <label className="block text-sm font-bold text-slate-400 mb-2">Phone Number</label>
+                                <input
+                                    type="tel"
+                                    value={newClient.phone}
+                                    onChange={(e) => { setNewClient({ ...newClient, phone: e.target.value }); setErrors({ ...errors, phone: '' }); }}
+                                    className={`w-full bg-slate-950 border ${errors.phone ? 'border-red-500' : 'border-slate-800'} rounded-xl px-4 py-3 text-white outline-none focus:border-indigo-500`}
+                                    placeholder="+1 234 567 8900"
+                                />
+                                {errors.phone && <p className="text-red-400 text-xs mt-1">{errors.phone}</p>}
+                            </div>
+                            <div>
                                 <label className="block text-sm font-bold text-slate-400 mb-2">Email Address</label>
                                 <input
                                     type="email"
                                     required
                                     value={newClient.email}
-                                    onChange={(e) => setNewClient({ ...newClient, email: e.target.value })}
-                                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white outline-none focus:border-indigo-500"
+                                    onChange={(e) => { setNewClient({ ...newClient, email: e.target.value }); setErrors({ ...errors, email: '' }); }}
+                                    className={`w-full bg-slate-950 border ${errors.email ? 'border-red-500' : 'border-slate-800'} rounded-xl px-4 py-3 text-white outline-none focus:border-indigo-500`}
                                     placeholder="john@example.com"
                                 />
+                                {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email}</p>}
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
@@ -252,13 +341,13 @@ export default function ClientsPage() {
                                 <button
                                     type="button"
                                     onClick={() => setShowAddModal(false)}
-                                    className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition-colors"
+                                    className="flex-1 px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition-all"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="submit"
-                                    className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition-colors shadow-lg shadow-indigo-600/20"
+                                    className="flex-1 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition-all shadow-lg shadow-indigo-600/20"
                                 >
                                     Create Client
                                 </button>
