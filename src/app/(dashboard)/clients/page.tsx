@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { Search, Plus, Phone, MessageSquare, PenSquare, Trash2, Mail } from 'lucide-react';
 import { useBusinessOS } from '@/providers/BusinessOSProvider';
-import { sendWelcomeEmail } from '@/lib/emailService';
+import { triggerClientCreatedAutomation } from '@/lib/automationService';
 
 interface Client {
     id: string;
@@ -21,6 +21,8 @@ export default function ClientsPage() {
     const [clients, setClients] = useState<Client[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState(false);
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [editingClient, setEditingClient] = useState<Client | null>(null);
     const [errors, setErrors] = useState({ email: '', phone: '' });
 
     // Form State
@@ -55,7 +57,7 @@ export default function ClientsPage() {
     };
 
     const validatePhone = (phone: string) => {
-        if (!phone) return true; // Phone is optional
+        if (!phone) return true;
         const phoneRegex = /^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,9}$/;
         return phoneRegex.test(phone);
     };
@@ -104,23 +106,63 @@ export default function ClientsPage() {
                 const data = await res.json();
                 setShowAddModal(false);
                 setNewClient({ name: '', email: '', phone: '', program: 'Interest', status: 'Lead' });
-                fetchClients(); // Refresh
+                fetchClients();
 
-                // Send notifications
-                if (data.client && newClient.phone) {
-                    sendWhatsAppNotification(newClient.name, newClient.phone);
-                }
-
-                if (data.client && newClient.email) {
-                    const emailSent = await sendWelcomeEmail(newClient.name, newClient.email, config.vertical);
-                    if (emailSent) {
-                        console.log('✅ Welcome email sent to', newClient.email);
-                    }
-                }
+                // Trigger automated notifications
+                console.log('🤖 Triggering automated notifications...');
+                await triggerClientCreatedAutomation(
+                    newClient.name,
+                    newClient.email,
+                    newClient.phone,
+                    config.vertical
+                );
             }
         } catch (error) {
             console.error(error);
         }
+    };
+
+    const handleEditClient = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editingClient) return;
+
+        // Validate
+        const newErrors = { email: '', phone: '' };
+        if (!validateEmail(editingClient.email)) {
+            newErrors.email = 'Please enter a valid email address';
+        }
+        if (editingClient.phone && !validatePhone(editingClient.phone)) {
+            newErrors.phone = 'Please enter a valid phone number (e.g., +1234567890)';
+        }
+
+        if (newErrors.email || newErrors.phone) {
+            setErrors(newErrors);
+            return;
+        }
+
+        setErrors({ email: '', phone: '' });
+
+        try {
+            const res = await fetch(`/api/clients/${editingClient.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(editingClient)
+            });
+
+            if (res.ok) {
+                setShowEditModal(false);
+                setEditingClient(null);
+                fetchClients();
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    const openEditModal = (client: Client) => {
+        setEditingClient({ ...client });
+        setShowEditModal(true);
+        setErrors({ email: '', phone: '' });
     };
 
     const handleDelete = async (id: string) => {
@@ -137,6 +179,119 @@ export default function ClientsPage() {
             console.error(error);
         }
     };
+
+    const ClientForm = ({ client, onSubmit, onCancel, isEdit = false }: {
+        client: any;
+        onSubmit: (e: React.FormEvent) => void;
+        onCancel: () => void;
+        isEdit?: boolean;
+    }) => (
+        <form onSubmit={onSubmit} className="space-y-4">
+            <div>
+                <label className="block text-sm font-bold text-slate-400 mb-2">Full Name</label>
+                <input
+                    type="text"
+                    required
+                    value={client.name}
+                    onChange={(e) => isEdit
+                        ? setEditingClient({ ...editingClient!, name: e.target.value })
+                        : setNewClient({ ...newClient, name: e.target.value })
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white outline-none focus:border-indigo-500"
+                    placeholder="e.g. John Doe"
+                />
+            </div>
+            <div>
+                <label className="block text-sm font-bold text-slate-400 mb-2">Phone Number</label>
+                <input
+                    type="tel"
+                    value={client.phone || ''}
+                    onChange={(e) => {
+                        const value = e.target.value;
+                        if (isEdit) {
+                            setEditingClient({ ...editingClient!, phone: value });
+                        } else {
+                            setNewClient({ ...newClient, phone: value });
+                        }
+                        setErrors({ ...errors, phone: '' });
+                    }}
+                    className={`w-full bg-slate-950 border ${errors.phone ? 'border-red-500' : 'border-slate-800'} rounded-xl px-4 py-3 text-white outline-none focus:border-indigo-500`}
+                    placeholder="+1 234 567 8900"
+                />
+                {errors.phone && <p className="text-red-400 text-xs mt-1">{errors.phone}</p>}
+            </div>
+            <div>
+                <label className="block text-sm font-bold text-slate-400 mb-2">Email Address</label>
+                <input
+                    type="email"
+                    required
+                    value={client.email}
+                    onChange={(e) => {
+                        const value = e.target.value;
+                        if (isEdit) {
+                            setEditingClient({ ...editingClient!, email: value });
+                        } else {
+                            setNewClient({ ...newClient, email: value });
+                        }
+                        setErrors({ ...errors, email: '' });
+                    }}
+                    className={`w-full bg-slate-950 border ${errors.email ? 'border-red-500' : 'border-slate-800'} rounded-xl px-4 py-3 text-white outline-none focus:border-indigo-500`}
+                    placeholder="john@example.com"
+                />
+                {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email}</p>}
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+                <div>
+                    <label className="block text-sm font-bold text-slate-400 mb-2">Status</label>
+                    <select
+                        value={client.status}
+                        onChange={(e) => isEdit
+                            ? setEditingClient({ ...editingClient!, status: e.target.value })
+                            : setNewClient({ ...newClient, status: e.target.value })
+                        }
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white outline-none focus:border-indigo-500 cursor-pointer"
+                    >
+                        <option>Lead</option>
+                        <option>Active</option>
+                        <option>Churned</option>
+                    </select>
+                </div>
+                <div>
+                    <label className="block text-sm font-bold text-slate-400 mb-2">Program</label>
+                    <select
+                        value={client.program}
+                        onChange={(e) => isEdit
+                            ? setEditingClient({ ...editingClient!, program: e.target.value })
+                            : setNewClient({ ...newClient, program: e.target.value })
+                        }
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white outline-none focus:border-indigo-500 cursor-pointer"
+                    >
+                        <option>Interest</option>
+                        <option>Onboarding</option>
+                        <option>Hypertrophy</option>
+                        <option>Fat Loss</option>
+                        <option>Marathon Prep</option>
+                    </select>
+                </div>
+            </div>
+
+            <div className="flex gap-4 pt-4">
+                <button
+                    type="button"
+                    onClick={onCancel}
+                    className="flex-1 px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition-all"
+                >
+                    Cancel
+                </button>
+                <button
+                    type="submit"
+                    className="flex-1 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition-all shadow-lg shadow-indigo-600/20"
+                >
+                    {isEdit ? 'Update Client' : 'Create Client'}
+                </button>
+            </div>
+        </form>
+    );
 
     return (
         <div className="p-8 max-w-7xl mx-auto w-full">
@@ -252,10 +407,18 @@ export default function ClientsPage() {
                                         >
                                             <Phone size={18} />
                                         </button>
-                                        <button className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-white transition-colors" title="Edit">
+                                        <button
+                                            onClick={() => openEditModal(client)}
+                                            className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-white transition-colors"
+                                            title="Edit"
+                                        >
                                             <PenSquare size={18} />
                                         </button>
-                                        <button onClick={() => handleDelete(client.id)} className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-red-400 transition-colors" title="Delete">
+                                        <button
+                                            onClick={() => handleDelete(client.id)}
+                                            className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-red-400 transition-colors"
+                                            title="Delete"
+                                        >
                                             <Trash2 size={18} />
                                         </button>
                                     </div>
@@ -274,85 +437,29 @@ export default function ClientsPage() {
                             <h2 className="text-2xl font-bold text-white">Add New Client</h2>
                             <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-white">✕</button>
                         </div>
-                        <form onSubmit={handleAddClient} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-bold text-slate-400 mb-2">Full Name</label>
-                                <input
-                                    type="text"
-                                    required
-                                    value={newClient.name}
-                                    onChange={(e) => setNewClient({ ...newClient, name: e.target.value })}
-                                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white outline-none focus:border-indigo-500"
-                                    placeholder="e.g. John Doe"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-slate-400 mb-2">Phone Number</label>
-                                <input
-                                    type="tel"
-                                    value={newClient.phone}
-                                    onChange={(e) => { setNewClient({ ...newClient, phone: e.target.value }); setErrors({ ...errors, phone: '' }); }}
-                                    className={`w-full bg-slate-950 border ${errors.phone ? 'border-red-500' : 'border-slate-800'} rounded-xl px-4 py-3 text-white outline-none focus:border-indigo-500`}
-                                    placeholder="+1 234 567 8900"
-                                />
-                                {errors.phone && <p className="text-red-400 text-xs mt-1">{errors.phone}</p>}
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-slate-400 mb-2">Email Address</label>
-                                <input
-                                    type="email"
-                                    required
-                                    value={newClient.email}
-                                    onChange={(e) => { setNewClient({ ...newClient, email: e.target.value }); setErrors({ ...errors, email: '' }); }}
-                                    className={`w-full bg-slate-950 border ${errors.email ? 'border-red-500' : 'border-slate-800'} rounded-xl px-4 py-3 text-white outline-none focus:border-indigo-500`}
-                                    placeholder="john@example.com"
-                                />
-                                {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email}</p>}
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-bold text-slate-400 mb-2">Status</label>
-                                    <select
-                                        value={newClient.status}
-                                        onChange={(e) => setNewClient({ ...newClient, status: e.target.value })}
-                                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white outline-none focus:border-indigo-500 cursor-pointer"
-                                    >
-                                        <option>Lead</option>
-                                        <option>Active</option>
-                                        <option>Churned</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-slate-400 mb-2">Program</label>
-                                    <select
-                                        value={newClient.program}
-                                        onChange={(e) => setNewClient({ ...newClient, program: e.target.value })}
-                                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white outline-none focus:border-indigo-500 cursor-pointer"
-                                    >
-                                        <option>Interest</option>
-                                        <option>Hypertrophy</option>
-                                        <option>Fat Loss</option>
-                                        <option>Marathon Prep</option>
-                                    </select>
-                                </div>
-                            </div>
+                        <ClientForm
+                            client={newClient}
+                            onSubmit={handleAddClient}
+                            onCancel={() => setShowAddModal(false)}
+                        />
+                    </div>
+                </div>
+            )}
 
-                            <div className="flex gap-4 pt-4">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowAddModal(false)}
-                                    className="flex-1 px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition-all"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="flex-1 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition-all shadow-lg shadow-indigo-600/20"
-                                >
-                                    Create Client
-                                </button>
-                            </div>
-                        </form>
+            {/* Edit Client Modal */}
+            {showEditModal && editingClient && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-2xl font-bold text-white">Edit Client</h2>
+                            <button onClick={() => setShowEditModal(false)} className="text-slate-400 hover:text-white">✕</button>
+                        </div>
+                        <ClientForm
+                            client={editingClient}
+                            onSubmit={handleEditClient}
+                            onCancel={() => setShowEditModal(false)}
+                            isEdit={true}
+                        />
                     </div>
                 </div>
             )}

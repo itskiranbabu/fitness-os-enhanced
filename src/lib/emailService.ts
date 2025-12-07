@@ -1,5 +1,18 @@
 import emailjs from '@emailjs/browser';
 
+// Initialize EmailJS with public key
+const initEmailJS = () => {
+    const publicKey = process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY;
+    if (publicKey) {
+        emailjs.init(publicKey);
+    }
+};
+
+// Call init on module load
+if (typeof window !== 'undefined') {
+    initEmailJS();
+}
+
 interface EmailParams {
     to_name: string;
     to_email: string;
@@ -9,16 +22,24 @@ interface EmailParams {
 }
 
 export const sendEmail = async (params: EmailParams): Promise<boolean> => {
-    const serviceId = process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID || process.env.VITE_EMAILJS_SERVICE_ID;
-    const templateId = process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID || process.env.VITE_EMAILJS_TEMPLATE_ID;
-    const publicKey = process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY || process.env.VITE_EMAILJS_PUBLIC_KEY;
+    const serviceId = process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID;
+    const templateId = process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID;
+    const publicKey = process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY;
+
+    console.log('📧 EmailJS Config:', {
+        serviceId: serviceId ? '✅ Set' : '❌ Missing',
+        templateId: templateId ? '✅ Set' : '❌ Missing',
+        publicKey: publicKey ? '✅ Set' : '❌ Missing'
+    });
 
     if (!serviceId || !templateId || !publicKey) {
-        console.warn('EmailJS credentials not configured');
+        console.warn('⚠️ EmailJS credentials not configured. Please set NEXT_PUBLIC_EMAILJS_* environment variables.');
         return false;
     }
 
     try {
+        console.log('📤 Sending email to:', params.to_email);
+
         const response = await emailjs.send(
             serviceId,
             templateId,
@@ -28,8 +49,7 @@ export const sendEmail = async (params: EmailParams): Promise<boolean> => {
                 from_name: params.from_name || 'BusinessOS',
                 message: params.message || 'Welcome to our program!',
                 subject: params.subject || 'Welcome!'
-            },
-            publicKey
+            }
         );
 
         console.log('✅ Email sent successfully:', response);
@@ -64,6 +84,8 @@ export const sendWelcomeEmail = async (name: string, email: string, vertical: st
         subject: 'Welcome!',
         message: `Hi ${name}! Welcome to our program. We're excited to have you on board and look forward to working with you!`
     };
+
+    console.log(`📧 Sending welcome email to ${name} (${email}) for ${vertical}`);
 
     return sendEmail({
         to_name: name,
